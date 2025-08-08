@@ -1,0 +1,65 @@
+# A job running detection rules using Databricks system tables
+resources:
+  jobs:
+    databricks_authoring_detections_job:
+      name: databricks_authoring_detections
+      
+      tags:
+        workload: databricks_authoring_detections
+        type: security_detection
+        version: 2.0.0
+      
+      # trigger:
+      #   # https://docs.databricks.com/api/workspace/jobs/create#trigger
+      #   periodic:
+      #     interval: 4
+      #     unit: HOURS
+
+      # email_notifications:
+      #   on_failure:
+      #     - your_email
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: bundle_target
+          default: ${bundle.target}
+        - name: environment
+          default: ${bundle.target}
+
+      tasks:
+        # Rule Configuration Setup (runs first)
+        - task_key: rule_configuration_setup
+          notebook_task:
+            notebook_path: ../detections/rule_configuration.sql
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+          
+        # Failed Login Detection
+        - task_key: failed_login_detection
+          depends_on:
+            - task_key: rule_configuration_setup
+          notebook_task:
+            notebook_path: ../detections/authentication/failed_login_detection.sql
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+          
+        # Privilege Escalation Detection
+        - task_key: privilege_escalation_detection
+          depends_on:
+            - task_key: rule_configuration_setup
+          notebook_task:
+            notebook_path: ../detections/authentication/privilege_escalation_detection.sql
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+          
+        # Data Exfiltration Detection
+        - task_key: data_exfiltration_detection
+          depends_on:
+            - task_key: rule_configuration_setup
+          notebook_task:
+            notebook_path: ../detections/data_access/data_exfiltration_detection.sql
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
