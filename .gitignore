@@ -1,25 +1,13 @@
 
 .databricks
 .vscode
-.venv
 venv
-# Sensitive files
-*.key
-*.pem
-*.env
-.env
-.env.*
-secrets/
-credentials/
-config.json
-auth.json
-*.password
-*.secret
-*.token
-private_key*
-id_rsa*
-*.p12
-*.pfx
-*.cer
-*.crt
+.databricks/
+build/
+dist/
+__pycache__/
+*.egg-info
+.venv/
+scratch/**
+!scratch/README.md
 

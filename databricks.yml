@@ -4,6 +4,7 @@
 
 bundle:
   name: databricks-authoring-detections
+  uuid: 43fe3aba-21ca-474f-94a2-c05f9097b240
 
 include:
   - resources/*.yml
@@ -17,6 +18,8 @@ variables:
     description: The catalog to use
   schema:
     description: The schema to use
+  workspace_host:
+    description: The Databricks workspace host URL
 
 targets:
   dev:
@@ -34,6 +37,7 @@ targets:
           warehouse: "Shared endpoint"
       catalog: users
       schema: ${workspace.current_user.short_name}
+      workspace_host: https://e2-demo-field-eng.cloud.databricks.com
 
   prod:
     mode: production
@@ -45,6 +49,7 @@ targets:
       warehouse_id: 148ccb90800933a1
       catalog: users
       schema: ${workspace.current_user.short_name}
+      workspace_host: https://adb-984752964297111.11.azuredatabricks.net
     permissions:
       - user_name: anhhoang.chu@databricks.com
         level: CAN_MANAGE

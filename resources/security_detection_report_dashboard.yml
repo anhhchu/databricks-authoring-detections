@@ -1,0 +1,6 @@
+resources:
+  dashboards:
+    security_detection_report_dashboard:
+      display_name: 'Security Detection Report'
+      file_path: ../src/security_detection_report.lvdash.json
+      warehouse_id: ${var.warehouse_id}

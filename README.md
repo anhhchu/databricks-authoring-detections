@@ -1,26 +1,32 @@
-# Detection-as-Code with Databricks
+# Security Detection-as-Code with Databricks
 
-This project demonstrates how to author, test, and deploy detection rules using SQL and Databricks notebooks following Detection-as-Code principles. The detection rules use Databricks system tables for real-time security monitoring.
+This project demonstrates how to author and deploy detection rules using SQL and Databricks notebooks for Security Detection-as-Code principles. The detection rules use Databricks system tables for real-time security monitoring and automatically create alerts for security incidents.
 
 ## 🏗️ Project Structure
 
 ```
 databricks-authoring-detections/
-└── detections/                 # Detection rule notebooks
-    ├── authentication/        # Authentication-related detections
-    │   ├── failed_login_detection.sql
-    │   └── privilege_escalation_detection.sql
-    └── data_access/           # Data access anomaly detections
-        └── data_exfiltration_detection.sql
+├── src/                      # Source SQL files
+│   ├── authentication/       # Authentication-related detections
+│   │   ├── failed_login_detection.sql
+│   │   └── privilege_escalation_detection.sql
+│   ├── data_access/          # Data access anomaly detections
+│   │   └── large_data_export_detection.sql
+│   ├── create_alert.sql      # Alert creation and management
+│   └── delete_alert.sql      # Alert deletion utilities, run on demand
+├── resources/                # Databricks workflow configuration
+│   └── databricks_workflow.yml
+└── databricks.yml           # Bundle configuration
 ```
 
 ## 🚀 Key Features
 
-- **SQL-based Detection Rules**: Write detection logic using familiar SQL syntax
-- **Databricks System Tables**: Use real operational data from Databricks environment
-- **Real-time Monitoring**: Query data from system tables for live detection
-- **Rule Management**: Rule Configuration Delta table for rule lifecycle management
-- **Databricks Asset Bundle (DAB)**: Deploy detection rules across workspaces to different environment dev, test, prod
+- 📊 **SQL-based Detection Rules**: Leverage enterprise-grade SQL for sophisticated security detection logic
+- 🔍 **Databricks System Tables**: Harness comprehensive operational data from your Databricks environment for deep visibility
+- 🚨 **Automated Alert Creation**: Streamline security operations with intelligent alert generation and management
+- 📦 **Databricks Asset Bundle (DAB)**: Enable seamless deployment across development, testing and production environments
+- 🔄 **Workflow Orchestration**: Optimize detection rule execution with advanced dependency management and scheduling
+- 📈 **Databricks AI/BI Dashboard**: Generate visualizations and interactive reports using Databricks SQL dashboards
 
 ## 📋 Prerequisites
 
@@ -163,161 +169,69 @@ $ databricks bundle run --target dev --profile DEFAULT
 $ databricks bundle run --target prod --profile PROD
 ```
 
+## 🚨 Alerts Setup
+
+### Alert Creation Workflow
+
+The project includes an automated alert creation system that runs after all detection rules complete:
+
+1. **Detection Execution**: All security detection rules run first
+2. **Alert Generation**: The `create_alert.sql` script automatically creates alerts based on detection results
+3. **Alert Management**: Alerts are configured with thresholds, notifications, and scheduling
+
+### Alert Configuration
+
+Alerts are automatically created with the following settings:
+
+- **Failed Login Alert**: Triggers when failed login count > 0 in the last 168 hours
+- **Account Admin Assignment**: Triggers when admin assignments > 5 in the last 168 hours  
+- **Data Export Alert**: Triggers when data exports > 1000 in the last 168 hours
+- **UC Permission Escalation**: Triggers when permission escalations > 5 in the last 168 hours
+
+### Alert Parameters
+
+Each alert can be configured with:
+
+- **Threshold Values**: Configurable thresholds for triggering alerts
+- **Comparison Operators**: Greater than, less than, equals, etc.
+- **Notification Settings**: Email notifications to specified users
+- **Schedule**: Cron-based scheduling for alert evaluation
+- **Retrigger Settings**: Configurable retrigger intervals
+
+### Customizing Alerts
+
+To modify alert behavior, edit the `src/create_alert.sql` file:
+
+```sql
+-- Example: Modify threshold for failed login alert
+SELECT create_alert(
+  display_name => 'failed_login_alert',
+  query_text => format_string(
+    'SELECT COUNT(*) AS value
+     FROM %s.%s.sec_v_auth_events
+     WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS',
+    :catalog, :schema),
+  warehouse_id => :warehouse_id,
+  comparison_operator => 'GREATER_THAN',
+  threshold_value => 5,  -- Changed from 0 to 5
+  user_email => :user_email
+) as alert;
+```
+
 ## Data Requirement
 ### System Tables Access
 
-The detection rules use Databricks system tables for real-time monitoring:
+The detection rules use Databricks system tables for real-time monitoring. Users must have READ permission on below system tables to run the detection rules.
 
-#### 1. **Audit Logs** (`system.access.audit`)
+#### **Audit Logs** (`system.access.audit`)
 - **Purpose**: Authentication and privilege events
 - **Retention**: 365 days (free)
-- **Streaming**: Yes
 - **Use Cases**: Login attempts, privilege changes, administrative actions
 
-#### 2. **Query History** (`system.query.history`)
-- **Purpose**: Query execution history
-- **Retention**: 180 days
-- **Use Cases**: Data access patterns, query performance, user behavior analysis
-
-#### 3. **Table Lineage** (`system.access.table_lineage`)
-- **Purpose**: Table read/write events
-- **Retention**: 365 days (free)
-- **Streaming**: Yes
-- **Use Cases**: Data access tracking, lineage analysis
-
-### Grant System Table Permissions
-
-Access to system tables is governed by Unity Catalog. To grant access:
-
-```sql
--- Grant access to system tables (run as metastore admin)
-GRANT USE ON SCHEMA system.access TO `your-security-group`;
-GRANT SELECT ON SCHEMA system.access TO `your-security-group`;
-GRANT USE ON SCHEMA system.query TO `your-security-group`;
-GRANT SELECT ON SCHEMA system.query TO `your-security-group`;
-```
-
-## 🛠️ Additional Development Workflow
-
-### 1. Create a New Detection Rule
-
-#### Step 1: Add Rule Configuration to Delta Table
-
-1. **Add rule configuration for all environments**:
-   ```sql
-   -- Insert new rule configuration into the rules_configuration table
-   INSERT INTO rules_configuration VALUES
-   -- Development Environment
-   ('AUTH-004', 'Suspicious Login Locations Detection', 'dev', 'security', 'detections', 
-    'detections.suspicious_locations_results', 24, 'medium', 0.6, 
-    map('distance_threshold_km', '500', 'min_login_count', '2'), 
-    current_timestamp(), current_timestamp(), true),
-   
-   -- Production Environment  
-   ('AUTH-004', 'Suspicious Login Locations Detection', 'prod', 'security', 'detections',
-    'detections.suspicious_locations_results', 24, 'medium', 0.8,
-    map('distance_threshold_km', '1000', 'min_login_count', '3'),
-    current_timestamp(), current_timestamp(), true);
-   ```
-
-#### Step 2: Create Location Detection Notebook
-
-1. **Create Notebook**: `detections/authentication/suspicious_login_locations.sql`
-
-2. **Add Standard Template**:
-   ```sql
-   -- MAGIC %md
-   -- MAGIC # Suspicious Login Locations Detection
-   -- MAGIC 
-   -- MAGIC **Rule ID**: AUTH-004
-   -- MAGIC **Author**: Security Team
-   -- MAGIC **Version**: 1.0.0
-   -- MAGIC 
-   -- MAGIC ## Overview
-   -- MAGIC Detects logins from unusual geographic locations using Databricks system tables
-   -- MAGIC 
-   -- MAGIC ## Data Sources
-   -- MAGIC - system.access.audit (Primary)
-   ```
-
-3. **Implement Standard Configuration Pattern**:
-   ```sql
-   -- Load rule configuration from central configuration table
-   use catalog identifier(:catalog);
-   use schema identifier(:schema);
-
-   CREATE OR REPLACE TEMP VIEW rule_config AS
-   SELECT 
-       rule_id, rule_name, environment, target_table,
-       time_window_hours, severity, confidence_threshold,
-       rule_specific_config['distance_threshold_km'] as distance_threshold_km,
-       rule_specific_config['min_login_count'] as min_login_count
-   FROM current_rule_config
-   WHERE rule_id = 'AUTH-004' 
-     AND environment = '${environment}';
-
-   -- Define time window variables
-   DECLARE OR REPLACE VARIABLE end_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
-   DECLARE OR REPLACE VARIABLE start_time TIMESTAMP DEFAULT (
-       SELECT CURRENT_TIMESTAMP() - INTERVAL (SELECT time_window_hours FROM rule_config) HOURS
-   );
-   ```
-
-4. **Implement Detection Logic**:
-   ```sql
-   -- Detection query using system tables and configuration
-   CREATE OR REPLACE TEMP VIEW suspicious_locations AS
-   SELECT 
-       user_identity.email as username,
-       source_ip_address as source_ip,
-       request_params.geolocation as geolocation,
-       COUNT(*) as login_count,
-       MIN(timestamp) as first_login,
-       MAX(timestamp) as last_login
-   FROM system.access.audit
-   WHERE timestamp >= start_time
-     AND timestamp <= end_time
-     AND event_name IN ('login', 'loginFailed')
-     AND user_identity.email IS NOT NULL
-   GROUP BY user_identity.email, source_ip_address, request_params.geolocation
-   HAVING COUNT(*) >= (SELECT CAST(min_login_count AS INT) FROM rule_config);
-
-   -- Generate detection results
-   CREATE OR REPLACE TEMP VIEW detection_results AS
-   SELECT 
-       rc.rule_id, rc.rule_name, rc.severity,
-       0.75 as confidence, -- Calculate based on your logic
-       'LOCATION_ANOMALY' as detection_type,
-       sl.username as entity_name,
-       'user' as entity_type,
-       sl.login_count, sl.geolocation, sl.source_ip,
-       sl.first_login, sl.last_login,
-       current_timestamp() as detection_timestamp,
-       'system.access.audit' as data_source,
-       'Databricks System Tables' as platform
-   FROM suspicious_locations sl
-   CROSS JOIN rule_config rc;
-   ```
-
-#### Step 3: Add to Workflow (Optional)
-
-If you want the new rule to run automatically with other detections:
-
-```yaml
-# Add to resources/databricks_workflow.yml tasks section:
-- task_key: suspicious_login_locations_detection
-  depends_on:
-    - task_key: rule_configuration_setup
-  notebook_task:
-    notebook_path: ../detections/authentication/suspicious_login_locations.sql
-    source: WORKSPACE
-    warehouse_id: ${var.warehouse_id}
-```
-
-Finally, follow the deployment process above to deploy new rules
 
 ## 📚 Additional Resources
 
 - [Databricks System Tables Documentation](https://docs.databricks.com/aws/en/admin/system-tables/)
 - [Unity Catalog Setup Guide](https://docs.databricks.com/data-governance/unity-catalog/index.html)
-- [System Tables Access Guide](https://docs.databricks.com/aws/en/admin/system-tables/audit-logs.html)
+- [Audit log system table reference](https://docs.databricks.com/aws/en/admin/system-tables/audit-logs.html)
+- [Databricks Alerts Documentation](https://docs.databricks.com/aws/en/sql/user/alerts/)

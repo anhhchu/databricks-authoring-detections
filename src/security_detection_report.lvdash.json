@@ -1,0 +1,1029 @@
+{
+  "datasets": [
+    {
+      "name": "996d1f2e",
+      "displayName": "failed_logins_analysis_by_ip_and_user",
+      "queryLines": [
+        "with\n",
+        "failed_logins_by_ip AS (\n",
+        "  SELECT \n",
+        "      source_ip,\n",
+        "      response_message,\n",
+        "      COUNT(*) AS failed_attempts,\n",
+        "      COUNT(DISTINCT username) AS unique_users,\n",
+        "      MIN(event_time) AS first_attempt,\n",
+        "      MAX(event_time) AS last_attempt,\n",
+        "      COLLECT_LIST(DISTINCT username) AS targeted_usernames,\n",
+        "      COLLECT_LIST(DISTINCT user_agent) AS user_agents\n",
+        "  FROM sec_v_auth_events\n",
+        "  WHERE source_ip IS NOT NULL\n",
+        "  and event_time >= :start_time\n",
+        "  GROUP BY source_ip, response_message\n",
+        "),\n",
+        "failed_logins_by_user AS (\n",
+        "  SELECT \n",
+        "      username,\n",
+        "      COUNT(*) AS failed_attempts,\n",
+        "      COUNT(DISTINCT source_ip) AS unique_source_ips,\n",
+        "      MIN(event_time) AS first_attempt,\n",
+        "      MAX(event_time) AS last_attempt,\n",
+        "      COLLECT_LIST(DISTINCT source_ip) AS source_ips,\n",
+        "      COLLECT_LIST(DISTINCT user_agent) AS user_agents\n",
+        "  FROM sec_v_auth_events\n",
+        "  where username is not null\n",
+        "  and event_time >= :start_time\n",
+        "  GROUP BY username\n",
+        ")\n",
+        "-- IP-based detections\n",
+        "SELECT \n",
+        "    'IP_BASED' AS detection_type,\n",
+        "    ip.source_ip AS entity_id,\n",
+        "    ip.source_ip AS entity_name,\n",
+        "    'source_ip' AS entity_type,\n",
+        "    ip.failed_attempts AS failed_attempts,\n",
+        "    ip.unique_users AS unique_entities,          -- will carry `unique_users`\n",
+        "    ip.targeted_usernames AS related_entities,   -- will carry usernames list\n",
+        "    ip.user_agents AS user_agents,\n",
+        "    ip.first_attempt AS first_attempt,\n",
+        "    ip.last_attempt AS last_attempt,\n",
+        "    current_timestamp() AS detection_timestamp\n",
+        "FROM failed_logins_by_ip ip\n",
+        "\n",
+        "UNION ALL\n",
+        "\n",
+        "-- User-based detections \n",
+        "SELECT \n",
+        "    'USER_BASED' AS detection_type,\n",
+        "    u.username AS entity_id,\n",
+        "    u.username AS entity_name,\n",
+        "    'user' AS entity_type,\n",
+        "    u.failed_attempts AS failed_attempts,\n",
+        "    u.unique_source_ips AS unique_entities,      -- mapped into same column\n",
+        "    u.source_ips AS related_entities,            -- mapped into same column\n",
+        "    u.user_agents AS user_agents,\n",
+        "    u.first_attempt AS first_attempt,\n",
+        "    u.last_attempt AS last_attempt,\n",
+        "    current_timestamp() AS detection_timestamp\n",
+        "FROM failed_logins_by_user u;"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "41c08c52",
+      "displayName": "sec_v_data_export_detection",
+      "queryLines": [
+        "SELECT * FROM sec_v_data_export_detection\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "cf20332b",
+      "displayName": "sec_v_account_admin_assignments",
+      "queryLines": [
+        "SELECT * FROM sec_v_account_admin_assignments\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "16130009",
+      "displayName": "sec_v_sensitive_group_additions",
+      "queryLines": [
+        "SELECT * FROM sec_v_sensitive_group_additions\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "c210ba8a",
+      "displayName": "sec_v_workspace_acl_assignments",
+      "queryLines": [
+        "SELECT \n",
+        "  event_time,\n",
+        "  service_name,\n",
+        "  workspace_id,\n",
+        "  actor,\n",
+        "  target_user,\n",
+        "  action_name,\n",
+        "  indicator,\n",
+        "  severity,\n",
+        "  coalesce(new_acl, 'Not-specified') as new_acl\n",
+        "FROM \n",
+        "  sec_v_workspace_acl_assignments\n",
+        "WHERE \n",
+        "  event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "fd2affc8",
+      "displayName": "sec_v_workspace_db_sql_acl_changes",
+      "queryLines": [
+        "SELECT event_time,\n",
+        "service_name,\n",
+        "workspace_id,\n",
+        "actor,\n",
+        "target_principal,\n",
+        "action_name,\n",
+        "indicator,\n",
+        "severity,\n",
+        " coalesce(new_acl, 'Not-specified') as new_acl \n",
+        "FROM sec_v_workspace_db_sql_acl_changes\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "90a63fed",
+      "displayName": "sec_v_uc_permission_escalations",
+      "queryLines": [
+        "SELECT * FROM sec_v_uc_permission_escalations\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "b3d30879",
+      "displayName": "sec_v_account_setting_changes",
+      "queryLines": [
+        "SELECT * FROM sec_v_account_setting_changes\n",
+        "where event_time >= :start_time"
+      ],
+      "parameters": [
+        {
+          "displayName": "start_time",
+          "keyword": "start_time",
+          "dataType": "DATETIME",
+          "defaultSelection": {
+            "values": {
+              "dataType": "DATETIME",
+              "values": [
+                {
+                  "value": "now-7d/d"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    }
+  ],
+  "pages": [
+    {
+      "name": "c331a546",
+      "displayName": "Summary",
+      "layout": [
+        {
+          "widget": {
+            "name": "a8f6d533",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "41c08c52",
+                  "fields": [
+                    {
+                      "name": "action_name",
+                      "expression": "`action_name`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative",
+                    "fn": {
+                      "type": "symlog"
+                    }
+                  },
+                  "displayName": "Number of Exports"
+                },
+                "y": {
+                  "fieldName": "actor",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "actor"
+                },
+                "color": {
+                  "fieldName": "action_name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "action_name"
+                }
+              },
+              "frame": {
+                "title": "Data Export Action",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 26,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "a49135f1",
+            "queries": [
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d45da9156ab4912b1371a55783_start_time",
+                "query": {
+                  "datasetName": "996d1f2e",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d46c5b12f08eb5220da2deca7b_start_time",
+                "query": {
+                  "datasetName": "41c08c52",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b1d911a89070499cef791dcb_start_time",
+                "query": {
+                  "datasetName": "cf20332b",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2201bb3a46768fe01a40590_start_time",
+                "query": {
+                  "datasetName": "16130009",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2bd19b7b24c090ec311dce7_start_time",
+                "query": {
+                  "datasetName": "c210ba8a",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b30f1913b532e1cdfae771c2_start_time",
+                "query": {
+                  "datasetName": "fd2affc8",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b35d11bbbf6c787d9d6720ff_start_time",
+                "query": {
+                  "datasetName": "90a63fed",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b3cd1cf995637ba9948d19fd_start_time",
+                "query": {
+                  "datasetName": "b3d30879",
+                  "parameters": [
+                    {
+                      "name": "start_time",
+                      "keyword": "start_time"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d45da9156ab4912b1371a55783_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d46c5b12f08eb5220da2deca7b_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b1d911a89070499cef791dcb_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2201bb3a46768fe01a40590_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2bd19b7b24c090ec311dce7_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b30f1913b532e1cdfae771c2_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b35d11bbbf6c787d9d6720ff_start_time"
+                  },
+                  {
+                    "parameterName": "start_time",
+                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b3cd1cf995637ba9948d19fd_start_time"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Start Time"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "ade7bf8c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "cf20332b",
+                  "fields": [
+                    {
+                      "name": "action_name",
+                      "expression": "`action_name`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "target_user",
+                      "expression": "`target_user`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Assignments"
+                  },
+                  "displayName": "Assignments"
+                },
+                "y": {
+                  "fieldName": "target_user",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "target_user"
+                },
+                "color": {
+                  "fieldName": "action_name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "action_name"
+                }
+              },
+              "frame": {
+                "title": "Account Admin Assignment",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "886cfbdc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c210ba8a",
+                  "fields": [
+                    {
+                      "name": "new_acl",
+                      "expression": "`new_acl`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "target_user",
+                      "expression": "`target_user`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "New Acl"
+                },
+                "y": {
+                  "fieldName": "target_user",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "target_user"
+                },
+                "color": {
+                  "fieldName": "new_acl",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Workspace Access",
+                        "Workspace Consume"
+                      ]
+                    }
+                  },
+                  "displayName": "new_acl"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "New Workspace Acl Assignments by Users"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 12,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "0d2fd684",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fd2affc8",
+                  "fields": [
+                    {
+                      "name": "new_acl",
+                      "expression": "`new_acl`"
+                    },
+                    {
+                      "name": "countdistinct(new_acl)",
+                      "expression": "COUNT(DISTINCT `new_acl`)"
+                    },
+                    {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "countdistinct(new_acl)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Count of Unique new_acl"
+                },
+                "y": {
+                  "fieldName": "actor",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "actor"
+                },
+                "color": {
+                  "fieldName": "new_acl",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "new_acl"
+                }
+              },
+              "frame": {
+                "title": "DBSQL Acls by User",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "4145bcd7",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "996d1f2e",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Failed Logins "
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "3d1336fa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "cf20332b",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "New Admins Assigns"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "d8830964",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c210ba8a",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Workspace Acls"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "7ebf699b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fd2affc8",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "DBSQL Acls"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "3d244a5b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "90a63fed",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Escalated UC Permissions"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "6c04a200",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fd2affc8",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)",
+                  "displayName": "Count of Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "New Account Settings"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#1F1B2E",
+        "dark": "#0C0B1D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#2A2442",
+        "dark": "#1B1833"
+      },
+      "widgetBorderColor": {
+        "light": "#5E5A80",
+        "dark": "#3F3B60"
+      },
+      "fontColor": {
+        "light": "#FDFDFD",
+        "dark": "#F5F5F5"
+      },
+      "selectionColor": {
+        "light": "#FF6EC7",
+        "dark": "#FF6EC7"
+      },
+      "visualizationColors": [
+        "#FF6EC7",
+        "#00FFF7",
+        "#BF00FF",
+        "#FF5F1F",
+        "#FFFF4D",
+        "#D9007F",
+        "#007FFF"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
