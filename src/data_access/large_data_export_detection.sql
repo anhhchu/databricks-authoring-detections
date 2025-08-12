@@ -7,7 +7,7 @@
 -- MAGIC **Version**: 2.0.0  
 -- MAGIC **Last Updated**: 2024-01-14  -- MAGIC 
 -- MAGIC ## Overview
--- MAGIC This detection rule identifies potential data exfiltration by monitoring for unusually large data exports, downloads, or transfers by users that deviate significantly from their baseline behavior using Databricks system tables.
+-- MAGIC This detection rule identifies potential data exfiltration by monitoring for unusually large data exports, downloads, or transfers by users
 -- MAGIC 
 -- MAGIC ## Detection Logic
 -- MAGIC - Monitors system.access.audit for large data exports, downloads, or transfers

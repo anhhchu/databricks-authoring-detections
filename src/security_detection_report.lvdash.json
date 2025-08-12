@@ -312,52 +312,75 @@
                   "datasetName": "41c08c52",
                   "fields": [
                     {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    },
+                    {
                       "name": "action_name",
                       "expression": "`action_name`"
                     },
                     {
                       "name": "count(*)",
                       "expression": "COUNT(`*`)"
-                    },
-                    {
-                      "name": "actor",
-                      "expression": "`actor`"
                     }
                   ],
-                  "disaggregated": false
+                  "cubeGroupingSets": {
+                    "sets": [
+                      {
+                        "fieldNames": [
+                          "actor",
+                          "action_name"
+                        ]
+                      },
+                      {}
+                    ]
+                  },
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`actor`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "`action_name`"
+                    }
+                  ]
                 }
               }
             ],
             "spec": {
               "version": 3,
-              "widgetType": "bar",
+              "widgetType": "pivot",
               "encodings": {
-                "x": {
-                  "fieldName": "count(*)",
-                  "scale": {
-                    "type": "quantitative",
-                    "fn": {
-                      "type": "symlog"
+                "rows": [
+                  {
+                    "fieldName": "actor",
+                    "scale": {
+                      "type": "categorical",
+                      "sort": {
+                        "by": "cell-reversed",
+                        "field": {
+                          "index": 0
+                        }
+                      }
+                    },
+                    "displayName": "actor"
+                  },
+                  {
+                    "fieldName": "action_name",
+                    "displayName": "Action"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "count(*)",
+                      "cellType": "text",
+                      "displayName": "#Exports"
                     }
-                  },
-                  "displayName": "Number of Exports"
-                },
-                "y": {
-                  "fieldName": "actor",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "x-reversed"
-                    }
-                  },
-                  "displayName": "actor"
-                },
-                "color": {
-                  "fieldName": "action_name",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "action_name"
+                  ]
                 }
               },
               "frame": {
