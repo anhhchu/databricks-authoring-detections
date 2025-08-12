@@ -17,7 +17,7 @@
 -- MAGIC - **Technique**: T1041 (Exfiltration Over C2 Channel)
 -- MAGIC 
 -- MAGIC ## Data Sources
--- MAGIC - system.query.history (Primary)
+-- MAGIC - system.access.audit (Primary)
 
 -- COMMAND ----------
 -- Define time window variables for the analysis
