@@ -5,6 +5,9 @@ use schema identifier(:schema);
 -- COMMAND ----------
 
 -- DBTITLE 1,List alerts
+-- set the owner you want
+DECLARE or replace owner STRING DEFAULT 'anhhoang.chu@databricks.com';
+
 create temp view alerts_to_delete 
 as
 WITH r AS (
@@ -53,7 +56,7 @@ SELECT
   a.evaluation.comparison_operator AS op,
   a.evaluation.threshold.value.double_value AS threshold
 FROM alerts
-WHERE a.owner_user_name = :owner;
+WHERE a.owner_user_name = owner;
 
 select * from alerts_to_delete;
 
