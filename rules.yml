@@ -1,0 +1,90 @@
+# Databricks Security Detection Alert Rules
+# This file consolidates all alert configurations for easy management
+
+# Global settings that apply to all alerts
+global:
+  catalog: "${catalog}"
+  schema: "${schema}"
+  warehouse_id: "${warehouse_id}"
+  user_email: "${user_email}"
+  timezone_id: "UTC"
+  pause_status: "PAUSED"
+  notify_on_ok: true
+  retrigger_seconds: 0
+
+# Alert configurations
+alerts:
+  failed_login_alert:
+    display_name: "failed_login_alert"
+    description: "Alert for failed login attempts"
+    query_template: |
+      SELECT COUNT(*) AS value
+      FROM {catalog}.{schema}.sec_v_auth_events
+      WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 0
+    cron_schedule: "0 0 10 1/7 * ?"
+    empty_result_state: "UNKNOWN"
+
+  account_admin_assignment:
+    display_name: "account_admin_assignment"
+    description: "Alert for account admin assignments"
+    query_template: |
+      SELECT COUNT(*) AS admin_assignments
+      FROM {catalog}.{schema}.sec_v_account_admin_assignments
+      WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 5
+    cron_schedule: "0 0 10 1/7 * ?"
+    empty_result_state: "UNKNOWN"
+
+  data_export_alert:
+    display_name: "data_export_alert"
+    description: "Alert for large data exports"
+    query_template: |
+      SELECT COUNT(*) AS exports
+      FROM {catalog}.{schema}.sec_v_data_export_detection
+      WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 1000
+    cron_schedule: "0 0 10 1/7 * ?"
+    empty_result_state: "UNKNOWN"
+
+  uc_permission_escalation:
+    display_name: "uc_permission_escalation"
+    description: "Alert for Unity Catalog permission escalations"
+    query_template: |
+      SELECT COUNT(*) AS permission_escalations
+      FROM {catalog}.{schema}.sec_v_uc_permission_escalations
+      WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 5
+    cron_schedule: "0 0 10 1/7 * ?"
+    empty_result_state: "UNKNOWN"
+
+# Alert function configuration
+alert_function:
+  aggregation: "FIRST"
+  display: "value"
+  name: "value"
+  cron_schedule: "0 0 10 1/7 * ?"  # Default: Every Monday at 10 AM UTC
+  timezone_id: "UTC"
+  pause_status: "PAUSED"
+  notify_on_ok: true
+  retrigger_seconds: 0
+
+# Supported comparison operators
+comparison_operators:
+  - "GREATER_THAN"
+  - "GREATER_THAN_OR_EQUAL"
+  - "LESS_THAN"
+  - "LESS_THAN_OR_EQUAL"
+  - "EQUAL"
+  - "NOT_EQUAL"
+
+# Time intervals for queries (in hours)
+time_intervals:
+  default: 168  # 7 days
+  short: 24     # 1 day
+  medium: 168   # 7 days
+  long: 720     # 30 days
