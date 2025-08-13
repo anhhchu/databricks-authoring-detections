@@ -5,18 +5,27 @@ This project demonstrates how to author and deploy detection rules using SQL and
 ## 🏗️ Project Structure
 
 ```
-databricks-authoring-detections/
-├── src/                      # Source SQL files
+databricks-security-detections/
+├── src/                      # Source files
 │   ├── authentication/       # Authentication-related detections
 │   │   ├── failed_login_detection.sql
 │   │   └── privilege_escalation_detection.sql
 │   ├── data_access/          # Data access anomaly detections
 │   │   └── large_data_export_detection.sql
-│   ├── create_alert.sql      # Alert creation and management
-│   └── delete_alert.sql      # Alert deletion utilities, run on demand
+│   ├── functions/            # SQL functions and utilities
+│   │   ├── alert_function.sql      # Function to create http connection and alert function
+│   │   └── generated_alerts.sql  # Generated alerts (auto-created)
+│   ├── utils/                # Python utilities
+│   │   ├── delete_alert.sql      # Alert deletion utilities
+│   │   └── generate_alerts.py    # Alert generation script
+│   └── alerts.sql            # Generated alerts from rules.yml
 ├── resources/                # Databricks workflow configuration
-│   └── databricks_workflow.yml
-└── databricks.yml           # Bundle configuration
+│   ├── databricks_workflow.yml
+│   └── security_detection_report_dashboard.yml
+├── rules.yml                 # Alert rules configuration
+├── databricks.yml           # Bundle configuration
+├── requirements.txt          # Python dependencies
+└── README.md                # Project documentation
 ```
 
 ## 🚀 Key Features
@@ -136,7 +145,43 @@ targets:
       schema: your_schema
 ```
 
-### 5. Deploy to Databricks Workspace
+### 5. Set Up Security Rules and Alerts (Before Deployment)
+
+Before deploying to your Databricks workspace, you should customize the security detection system:
+
+#### A. Review and Customize Security Rules
+
+1. **Examine existing rules** in `src/authentication/` and `src/data_access/` directories
+2. **Modify thresholds** and logic based on your security requirements
+3. **Add new detection rules** for your specific use cases
+
+#### B. Configure Alert Rules
+
+1. **Edit `rules.yml`** to customize alert configurations (see in [Alerts Setup](#-alerts-setup)):
+   - Adjust threshold values for your environment
+   - Set appropriate time intervals (short: 24h, medium: 168h, long: 720h)
+   - Configure notification settings and scheduling
+
+2. **Generate alerts** from your rules:
+   ```bash
+   python3 src/utils/generate_alerts.py
+   ```
+
+3. **Review generated SQL** in `src/alerts.sql` to ensure it meets your requirements
+
+#### C. Test Your Configuration
+
+1. **Validate rules syntax** by running the generation script
+2. **Check alert parameters** for completeness
+3. **Verify time intervals** match your monitoring needs
+
+#### D. Prepare for Deployment
+
+1. **Commit your changes** to version control
+2. **Document any customizations** for your team
+3. **Ensure all required parameters** are set in `databricks.yml`
+
+### 6. Deploy to Databricks Workspace
 
 #### Deploy in Development Environment
 
@@ -156,7 +201,10 @@ You can find the deployed job by opening your workspace and clicking on **Workfl
 $ databricks bundle deploy --target prod --profile PROD
 ```
 
-### Run a Job
+This deploys everything that's defined for this project, including:
+- A job called `databricks_authoring_detecion_job`
+
+### 7. Run a Job
 
 **Run in Dev**
 
@@ -183,10 +231,10 @@ The project includes an automated alert creation system that runs after all dete
 
 Alerts are automatically created with the following settings:
 
-- **Failed Login Alert**: Triggers when failed login count > 0 in the last 168 hours
-- **Account Admin Assignment**: Triggers when admin assignments > 5 in the last 168 hours  
-- **Data Export Alert**: Triggers when data exports > 1000 in the last 168 hours
-- **UC Permission Escalation**: Triggers when permission escalations > 5 in the last 168 hours
+- **Failed Login Alert**: Triggers when failed login count > 0 in the last 24 hours (short interval)
+- **Account Admin Assignment**: Triggers when admin assignments > 5 in the last 24 hours (short interval)
+- **Data Export Alert**: Triggers when data exports > 1000 in the last 168 hours (medium interval)
+- **UC Permission Escalation**: Triggers when permission escalations > 5 in the last 720 hours (long interval)
 
 ### Alert Parameters
 
@@ -197,26 +245,112 @@ Each alert can be configured with:
 - **Notification Settings**: Email notifications to specified users
 - **Schedule**: Cron-based scheduling for alert evaluation
 - **Retrigger Settings**: Configurable retrigger intervals
+- **Time Intervals**: Configurable monitoring windows (short: 24h, medium: 168h, long: 720h)
 
-### Customizing Alerts
+### Adding New Security Rules and Alerts
 
-To modify alert behavior, edit the `src/create_alert.sql` file:
+Before deploying to your Databricks workspace, you can customize and extend the security detection system:
 
-```sql
--- Example: Modify threshold for failed login alert
-SELECT create_alert(
-  display_name => 'failed_login_alert',
-  query_text => format_string(
-    'SELECT COUNT(*) AS value
-     FROM %s.%s.sec_v_auth_events
-     WHERE event_time >= current_timestamp() - INTERVAL 168 HOURS',
-    :catalog, :schema),
-  warehouse_id => :warehouse_id,
-  comparison_operator => 'GREATER_THAN',
-  threshold_value => 5,  -- Changed from 0 to 5
-  user_email => :user_email
-) as alert;
+#### 1. Generate Alerts from Rules
+
+First, generate the SQL alerts from your rules configuration:
+
+```bash
+python3 src/utils/generate_alerts.py
 ```
+
+This creates `src/alerts.sql` with all your configured alerts.
+
+#### 2. Adding a New Alert
+
+Add this to your `rules.yml`:
+
+```yaml
+alerts:
+  # ... existing alerts ...
+  
+  new_security_alert:
+    display_name: "new_security_alert"
+    description: "Custom security detection"
+    time_interval: "short"  # Options: short(24h), medium(168h), long(720h), default(168h)
+    query_template: |
+      format_string(
+        'SELECT COUNT(*) AS suspicious_activity
+         FROM %s.%s.your_security_table
+         WHERE event_time >= current_timestamp() - INTERVAL {time_interval} HOURS
+         AND risk_score > 0.8',
+        :catalog, :schema)
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 10
+    cron_schedule: "0 */6 * * * ?"  # Every 6 hours
+    empty_result_state: "UNKNOWN"
+```
+
+#### 3. Modifying Existing Alerts
+
+Change threshold values, comparison operators, or scheduling:
+
+```yaml
+alerts:
+  data_export_alert:
+    # ... other settings ...
+    threshold_value: 500  # Changed from 1000
+    time_interval: "short"  # Changed from medium to short (24h instead of 168h)
+    cron_schedule: "0 */2 * * * ?"  # Every 2 hours instead of weekly
+```
+
+#### 4. Global Settings
+
+Modify settings that apply to all alerts:
+
+```yaml
+global:
+  # ... other settings ...
+  timezone_id: "America/New_York"  # Change timezone
+  notify_on_ok: false              # Don't notify on OK status
+  retrigger_seconds: 300           # Retrigger after 5 minutes
+```
+
+#### 5. Time Interval Configuration
+
+Customize the time intervals used across all alerts:
+
+```yaml
+time_intervals:
+  short: 24     # 1 day - for frequent, real-time alerts
+  medium: 168   # 7 days - for weekly monitoring
+  long: 720     # 30 days - for monthly compliance checks
+  default: 168  # 7 days - fallback interval
+```
+
+
+### Regenerating Alerts
+
+After any changes to `rules.yml` to regenerate the `alerts.sql` file, run below command:
+
+```bash
+python3 src/utils/generate_alerts.py
+```
+
+### Validation and Best Practices
+
+The generated SQL includes:
+- Proper SQL escaping for quotes
+- All required parameters
+- Consistent formatting
+- Clear comments for each alert
+
+**Best Practices:**
+- Keep alert descriptions clear and actionable
+- Use appropriate threshold values for your environment
+- Test alerts in development before production
+- Version control your `rules.yml` alongside code
+- Document any custom query logic in descriptions
+- Choose appropriate time intervals based on monitoring needs:
+  - **Short (24h)**: For real-time security events
+  - **Medium (168h)**: For weekly monitoring
+  - **Long (720h)**: For monthly compliance checks
+
 
 ## Data Requirement
 ### System Tables Access

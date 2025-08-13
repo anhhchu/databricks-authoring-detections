@@ -26,8 +26,6 @@ resources:
           default: ${var.schema}
         - name: bundle_target
           default: ${bundle.target}
-        - name: time_window_hour
-          default: 168
 
       tasks:
           
@@ -52,19 +50,32 @@ resources:
             source: WORKSPACE
             warehouse_id: ${var.warehouse_id}
 
-        # Create Alert
-        - task_key: create_alert
+        # Create Alert functions
+        - task_key: alert_functions
           depends_on:
             - task_key: failed_login_detection
             - task_key: privilege_escalation_detection
             - task_key: data_exfiltration_detection
           notebook_task:
-            notebook_path: ../src/create_alert.sql
+            notebook_path: ../src/functions/alert_function.sql
             source: WORKSPACE
             base_parameters:
               user_email: anhhoang.chu@databricks.com
               host: ${var.workspace_host}
               warehouse_id: ${var.warehouse_id}
+        
+        # Create Alerts
+        - task_key: generate_alerts
+          depends_on:
+            - task_key: alert_functions
+          notebook_task:
+            notebook_path: ../src/alerts.sql
+            source: WORKSPACE
+            warehouse_id: ${var.warehouse_id}
+            base_parameters:
+              user_email: anhhoang.chu@databricks.com
+              host: ${var.workspace_host}
+              
 
         # Create/refresh dashboard
         - task_key: refresh_dashboard

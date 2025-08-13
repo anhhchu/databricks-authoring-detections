@@ -4,7 +4,6 @@ numpy>=1.21.0
 
 # Databricks SDK and utilities
 databricks-sdk>=0.12.0
-databricks-cli>=0.17.0
 
 # Testing framework
 pytest>=7.0.0

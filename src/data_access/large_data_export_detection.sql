@@ -19,11 +19,6 @@
 -- MAGIC ## Data Sources
 -- MAGIC - system.query.history (Primary)
 
--- COMMAND ----------
--- Define time window variables for the analysis
-DECLARE OR REPLACE VARIABLE end_time = CURRENT_TIMESTAMP();
-DECLARE OR REPLACE VARIABLE start_time TIMESTAMP;
-SET VARIABLE start_time = (SELECT CURRENT_TIMESTAMP() - INTERVAL 168 HOURS);
 
 -- COMMAND ----------
 
@@ -95,23 +90,3 @@ FROM system.access.audit a
 WHERE a.service_name = 'dashboards'
   AND a.action_name IN ('triggerDashboardSnapshot')
   AND a.response['status_code'] = 200;
-
-
--- COMMAND ----------
-
--- DBTITLE 1,Download by source
-SELECT source, action_name, count(*) as num_actions FROM sec_v_data_export_detection
-WHERE event_time between start_time and end_time 
-group by all
-order by num_actions desc
-limit 10
-
--- COMMAND ----------
-
--- DBTITLE 1,Download by users
-SELECT actor, 
-count(*) as num_actions FROM sec_v_data_export_detection
-WHERE event_time between start_time and end_time 
-group by all
-order by num_actions desc
-limit 10

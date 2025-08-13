@@ -127,7 +127,6 @@ SELECT
     current_timestamp() AS detection_timestamp
 FROM failed_logins_by_user u;
 
-SELECT * FROM sec_v_failed_login_detection;
 
 
 -- COMMAND ----------
