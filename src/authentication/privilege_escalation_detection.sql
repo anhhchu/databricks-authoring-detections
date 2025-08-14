@@ -33,14 +33,6 @@ use schema identifier(:schema);
 
 -- COMMAND ----------
 
-DECLARE OR REPLACE VARIABLE end_time = CURRENT_TIMESTAMP();
-DECLARE OR REPLACE VARIABLE start_time TIMESTAMP;
-SET VARIABLE start_time = (SELECT CURRENT_TIMESTAMP() - INTERVAL 168 HOURS);
-
-select start_time, end_time;
-
--- COMMAND ----------
-
 -- MAGIC %md
 -- MAGIC ## Privileges views
 
@@ -61,8 +53,6 @@ FROM system.access.audit
 WHERE service_name = 'accounts'
   AND action_name in ('setAccountAdmin', 'setAdmin');
 
-select * from sec_v_account_admin_assignments where event_time between start_time and end_time;
-
 
 -- COMMAND ----------
 
@@ -81,8 +71,6 @@ SELECT
 FROM system.access.audit
 WHERE service_name = 'accounts'
   AND action_name = 'changeDatabricksWorkspaceAcl';
-
-select * from sec_v_workspace_acl_assignments where event_time between start_time and end_time;
 
 
 -- COMMAND ----------
@@ -108,8 +96,6 @@ JOIN sensitive_groups sg
 WHERE a.service_name = 'accounts'
   AND a.action_name IN ('addPrincipalToGroup','addPrincipalsToGroup');
 
-select * from sec_v_sensitive_group_additions where event_time between start_time and end_time;
-
 
 -- COMMAND ----------
 
@@ -128,9 +114,6 @@ SELECT
 FROM system.access.audit
 WHERE service_name = 'accounts'
   AND action_name IN ('changeDatabricksSqlAcl');
-
-
-select * from sec_v_workspace_db_sql_acl_changes where event_time between start_time and end_time;
 
 -- COMMAND ----------
 
@@ -167,9 +150,6 @@ WHERE service_name = 'unityCatalog'
   and request_params['securable_type']   in ('CATALOG', 'SCHEMA', 'TABLE') ;
 
 
-select * from sec_v_uc_permission_escalations where event_time between start_time and end_time;
-
-
 -- COMMAND ----------
 
 -- DBTITLE 1,Account-level settings changed
@@ -186,6 +166,3 @@ SELECT
 FROM system.access.audit
 WHERE service_name = 'accounts'
   AND action_name IN ('setSetting','deleteSetting');
-
-select * from sec_v_account_setting_changes where event_time between start_time and end_time;
-
