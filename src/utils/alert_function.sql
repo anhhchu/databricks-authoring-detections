@@ -81,12 +81,7 @@ SELECT
           'notification', named_struct(
             'notify_on_ok',      notify_on_ok,
             'retrigger_seconds', retrigger_seconds,
-            'subscriptions',
-              CASE
-                WHEN user_email IS NOT NULL
-                  THEN array(named_struct('user_email', user_email))
-                ELSE array()
-              END
+            'subscriptions', array(named_struct('user_email', user_email))
           ),
 
           -- schedule block

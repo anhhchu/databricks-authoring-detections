@@ -246,7 +246,7 @@
         "SELECT distinct\n",
         "    escalation_type,\n",
         "    actor,\n",
-        "    affected_entity,\n",
+        "    target_user,\n",
         "    actor_activity_count,\n",
         "    actor_unique_entities,\n",
         "    get_json_object(ai_comprehensive_analysis, '$.risk_level') as risk_level,\n",
@@ -305,10 +305,36 @@
                     {
                       "name": "count(*)",
                       "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "cubeGroupingSets": {
+                    "sets": [
+                      {
+                        "fieldNames": [
+                          "actor",
+                          "action_name"
+                        ]
+                      },
+                      {
+                        "fieldNames": [
+                          "daily(event_time)"
+                        ]
+                      }
+                    ]
+                  },
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`actor`"
                     },
                     {
-                      "name": "actor",
-                      "expression": "`actor`"
+                      "direction": "ASC",
+                      "expression": "`action_name`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "DATE_TRUNC(\"DAY\", `event_time`)"
                     }
                   ]
                 }
@@ -318,32 +344,48 @@
               "version": 3,
               "widgetType": "pivot",
               "encodings": {
-                "x": {
-                  "fieldName": "count(*)",
-                  "scale": {
-                    "type": "quantitative",
-                    "fn": {
-                      "type": "symlog"
+                "rows": [
+                  {
+                    "fieldName": "actor",
+                    "scale": {
+                      "type": "categorical",
+                      "sort": {
+                        "by": "cell-reversed",
+                        "field": {
+                          "index": 0
+                        }
+                      }
+                    },
+                    "displayName": "actor"
+                  },
+                  {
+                    "fieldName": "action_name",
+                    "displayName": "action_name"
+                  }
+                ],
+                "columns": [
+                  {
+                    "fieldName": "daily(event_time)",
+                    "displayName": "event_time"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "count(*)",
+                      "cellType": "text",
+                      "style": {
+                        "type": "color-scale",
+                        "backgroundColor": {
+                          "scale": {
+                            "type": "quantitative"
+                          }
+                        }
+                      },
+                      "displayName": "Exports"
                     }
-                  },
-                  "displayName": "Number of Exports"
-                },
-                "y": {
-                  "fieldName": "actor",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "x-reversed"
-                    }
-                  },
-                  "displayName": "actor"
-                },
-                "color": {
-                  "fieldName": "action_name",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "action_name"
+                  ]
                 }
               },
               "frame": {
@@ -829,8 +871,8 @@
                       "expression": "`actor`"
                     },
                     {
-                      "name": "affected_entity",
-                      "expression": "`affected_entity`"
+                      "name": "target_user",
+                      "expression": "`target_user`"
                     },
                     {
                       "name": "actor_activity_count",
@@ -909,7 +951,7 @@
                     "displayName": "actor"
                   },
                   {
-                    "fieldName": "affected_entity",
+                    "fieldName": "target_user",
                     "booleanValues": [
                       "false",
                       "true"
@@ -926,14 +968,14 @@
                     "displayAs": "string",
                     "visible": true,
                     "order": 100002,
-                    "title": "affected_entity",
+                    "title": "target_user",
                     "allowSearch": false,
                     "alignContent": "left",
                     "allowHTML": false,
                     "highlightLinks": false,
                     "useMonospaceFont": false,
                     "preserveWhitespace": false,
-                    "displayName": "affected_entity"
+                    "displayName": "target_user"
                   },
                   {
                     "fieldName": "actor_activity_count",

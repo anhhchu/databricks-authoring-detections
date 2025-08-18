@@ -57,7 +57,7 @@ WITH security_events AS (
     SELECT 
         'PRIVILEGE_ESCALATIONS' as event_type,
         COUNT(*) as event_count,
-        MAX(event_time) as last_event
+        MAX(actor_last_activity) as last_event
     FROM sec_mv_ai_privilege_escalation_consolidated
 )
 SELECT 
