@@ -8,7 +8,7 @@ global:
   warehouse_id: :warehouse_id
   user_email: :user_email
   timezone_id: "UTC"
-  pause_status: "PAUSED"
+  pause_status: "PAUSED" # Options: PAUSED, UNPAUSED
   notify_on_ok: true
   retrigger_seconds: 0
 
@@ -41,7 +41,7 @@ alerts:
     description: "Alert for account admin assignments"
     time_interval: "short"  # Options: short(24h), medium(168h), long(720h), default(168h)
     query_template: |
-      SELECT COUNT(*) AS admin_assignments
+      SELECT COUNT(*) AS value
          FROM %s.%s.sec_v_account_admin_assignments
          WHERE event_time >= current_timestamp() - INTERVAL {time_interval} HOURS
     comparison_operator: "GREATER_THAN"
@@ -54,11 +54,11 @@ alerts:
     description: "Alert for large data exports"
     time_interval: "medium"  # Options: short(24h), medium(168h), long(720h), default(168h)
     query_template: |
-        SELECT COUNT(*) AS exports
-         FROM %s.%s.sec_v_data_export_detection
+        SELECT count(*) AS value
+         FROM %s.%s.sec_mv_data_export_detection
          WHERE event_time >= current_timestamp() - INTERVAL {time_interval} HOURS
     comparison_operator: "GREATER_THAN"
-    threshold_value: 1000
+    threshold_value: 10
     cron_schedule: "0 0 10 1/7 * ?"
     empty_result_state: "UNKNOWN"
 
@@ -67,11 +67,24 @@ alerts:
     description: "Alert for Unity Catalog permission escalations"
     time_interval: "long"  # Options: short(24h), medium(168h), long(720h), default(168h)
     query_template: |
-      SELECT COUNT(*) AS admin_assignments
+      SELECT COUNT(*) AS value
          FROM %s.%s.sec_v_uc_permission_escalations
          WHERE event_time >= current_timestamp() - INTERVAL {time_interval} HOURS
     comparison_operator: "GREATER_THAN"
     threshold_value: 5
+    cron_schedule: "0 0 10 1/7 * ?"
+    empty_result_state: "UNKNOWN"
+
+  data_export_ai_alert:
+    display_name: "data_export_ai_alert"
+    description: "Alert for data exports based on AI analysis"
+    time_interval: "short"  # Options: short(24h), medium(168h), long(720h), default(168h)
+    query_template: |
+        SELECT sum(export_count) AS value
+         FROM %s.%s.sec_mv_ai_data_export_analysis
+         WHERE get_json_object(ai_comprehensive_analysis, "$.risk_level") IN ("HIGH", "CRITICAL")
+    comparison_operator: "GREATER_THAN"
+    threshold_value: 10
     cron_schedule: "0 0 10 1/7 * ?"
     empty_result_state: "UNKNOWN"
 

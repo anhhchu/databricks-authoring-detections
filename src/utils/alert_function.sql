@@ -9,8 +9,8 @@ use schema identifier(:schema);
 -- MAGIC from databricks.sdk import WorkspaceClient
 -- MAGIC w = WorkspaceClient()
 -- MAGIC
--- MAGIC # 1) create short-lived token
--- MAGIC token = w.tokens.create(comment=f"sdk-{time.time_ns()}").token_value
+-- MAGIC # create token with time to live (TTL) of 1 week
+-- MAGIC token = w.tokens.create(comment=f"sdk-{time.time_ns()}", lifetime_seconds=604800).token_value
 -- MAGIC
 -- MAGIC # Get the host parameter from the notebook context
 -- MAGIC host = dbutils.widgets.get("host")

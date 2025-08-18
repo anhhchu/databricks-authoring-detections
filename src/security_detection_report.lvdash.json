@@ -4,93 +4,16 @@
       "name": "996d1f2e",
       "displayName": "failed_logins_analysis_by_ip_and_user",
       "queryLines": [
-        "with\n",
-        "failed_logins_by_ip AS (\n",
-        "  SELECT \n",
-        "      source_ip,\n",
-        "      response_message,\n",
-        "      COUNT(*) AS failed_attempts,\n",
-        "      COUNT(DISTINCT username) AS unique_users,\n",
-        "      MIN(event_time) AS first_attempt,\n",
-        "      MAX(event_time) AS last_attempt,\n",
-        "      COLLECT_LIST(DISTINCT username) AS targeted_usernames,\n",
-        "      COLLECT_LIST(DISTINCT user_agent) AS user_agents\n",
-        "  FROM sec_v_auth_events\n",
-        "  WHERE source_ip IS NOT NULL\n",
-        "  and event_time >= :start_time\n",
-        "  GROUP BY source_ip, response_message\n",
-        "),\n",
-        "failed_logins_by_user AS (\n",
-        "  SELECT \n",
-        "      username,\n",
-        "      COUNT(*) AS failed_attempts,\n",
-        "      COUNT(DISTINCT source_ip) AS unique_source_ips,\n",
-        "      MIN(event_time) AS first_attempt,\n",
-        "      MAX(event_time) AS last_attempt,\n",
-        "      COLLECT_LIST(DISTINCT source_ip) AS source_ips,\n",
-        "      COLLECT_LIST(DISTINCT user_agent) AS user_agents\n",
-        "  FROM sec_v_auth_events\n",
-        "  where username is not null\n",
-        "  and event_time >= :start_time\n",
-        "  GROUP BY username\n",
-        ")\n",
-        "-- IP-based detections\n",
-        "SELECT \n",
-        "    'IP_BASED' AS detection_type,\n",
-        "    ip.source_ip AS entity_id,\n",
-        "    ip.source_ip AS entity_name,\n",
-        "    'source_ip' AS entity_type,\n",
-        "    ip.failed_attempts AS failed_attempts,\n",
-        "    ip.unique_users AS unique_entities,          -- will carry `unique_users`\n",
-        "    ip.targeted_usernames AS related_entities,   -- will carry usernames list\n",
-        "    ip.user_agents AS user_agents,\n",
-        "    ip.first_attempt AS first_attempt,\n",
-        "    ip.last_attempt AS last_attempt,\n",
-        "    current_timestamp() AS detection_timestamp\n",
-        "FROM failed_logins_by_ip ip\n",
-        "\n",
-        "UNION ALL\n",
-        "\n",
-        "-- User-based detections \n",
-        "SELECT \n",
-        "    'USER_BASED' AS detection_type,\n",
-        "    u.username AS entity_id,\n",
-        "    u.username AS entity_name,\n",
-        "    'user' AS entity_type,\n",
-        "    u.failed_attempts AS failed_attempts,\n",
-        "    u.unique_source_ips AS unique_entities,      -- mapped into same column\n",
-        "    u.source_ips AS related_entities,            -- mapped into same column\n",
-        "    u.user_agents AS user_agents,\n",
-        "    u.first_attempt AS first_attempt,\n",
-        "    u.last_attempt AS last_attempt,\n",
-        "    current_timestamp() AS detection_timestamp\n",
-        "FROM failed_logins_by_user u;"
-      ],
-      "parameters": [
-        {
-          "displayName": "start_time",
-          "keyword": "start_time",
-          "dataType": "DATETIME",
-          "defaultSelection": {
-            "values": {
-              "dataType": "DATETIME",
-              "values": [
-                {
-                  "value": "now-7d/d"
-                }
-              ]
-            }
-          }
-        }
+        "select * from sec_mv_ai_failed_login_analysis;"
       ],
       "catalog": "users",
       "schema": "anhhoang_chu"
     },
     {
       "name": "41c08c52",
-      "displayName": "sec_v_data_export_detection",
+      "displayName": "sec_mv_data_export_detection",
       "queryLines": [
-        "SELECT * FROM sec_v_data_export_detection\n",
+        "SELECT * FROM sec_mv_data_export_detection\n",
         "where event_time >= :start_time"
       ],
       "parameters": [
@@ -210,17 +133,20 @@
       "name": "fd2affc8",
       "displayName": "sec_v_workspace_db_sql_acl_changes",
       "queryLines": [
-        "SELECT event_time,\n",
-        "service_name,\n",
-        "workspace_id,\n",
-        "actor,\n",
-        "target_principal,\n",
-        "action_name,\n",
-        "indicator,\n",
-        "severity,\n",
-        " coalesce(new_acl, 'Not-specified') as new_acl \n",
-        "FROM sec_v_workspace_db_sql_acl_changes\n",
-        "where event_time >= :start_time"
+        "SELECT\n",
+        "  event_time,\n",
+        "  service_name,\n",
+        "  workspace_id,\n",
+        "  actor,\n",
+        "  target_principal,\n",
+        "  action_name,\n",
+        "  indicator,\n",
+        "  severity,\n",
+        "  coalesce(new_acl, 'Not-specified') as new_acl\n",
+        "FROM\n",
+        "  sec_v_workspace_db_sql_acl_changes\n",
+        "where\n",
+        "  event_time >= :start_time"
       ],
       "parameters": [
         {
@@ -295,6 +221,59 @@
       ],
       "catalog": "users",
       "schema": "anhhoang_chu"
+    },
+    {
+      "name": "72fcfe95",
+      "displayName": "sec_mv_ai_security_posture_summary",
+      "queryLines": [
+        "SELECT \n",
+        "    analysis_type,\n",
+        "    analysis_timestamp,\n",
+        "    get_json_object(ai_security_posture_assessment, '$.overall_risk_level') as overall_risk_level,\n",
+        "    get_json_object(ai_security_posture_assessment, '$.key_risk_areas') as key_risk_areas,\n",
+        "    get_json_object(ai_security_posture_assessment, '$.immediate_actions') as immediate_actions,\n",
+        "    get_json_object(ai_security_posture_assessment, '$.strategic_recommendations') as strategic_recommendations,\n",
+        "    get_json_object(ai_security_posture_assessment, '$.compliance_considerations') as compliance_considerations\n",
+        "FROM sec_mv_ai_security_posture_summary;"
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "dc9de73d",
+      "displayName": "sec_mv_ai_privilege_escalation_consolidated",
+      "queryLines": [
+        "SELECT distinct\n",
+        "    escalation_type,\n",
+        "    actor,\n",
+        "    affected_entity,\n",
+        "    actor_activity_count,\n",
+        "    actor_unique_entities,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.risk_level') as risk_level,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.risk_factors') as risk_factors,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.immediate_actions') as immediate_actions,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.investigation_steps') as investigation_steps\n",
+        "FROM sec_mv_ai_privilege_escalation_consolidated\n",
+        "WHERE get_json_object(ai_comprehensive_analysis, '$.risk_level') IN ('CRITICAL', 'HIGH');"
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
+    },
+    {
+      "name": "b40cbd60",
+      "displayName": "sec_mv_ai_data_export_analysis",
+      "queryLines": [
+        "SELECT \n",
+        "    *,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.risk_level') as risk_level,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.risk_factors') as risk_factors,\n",
+        "    get_json_object(ai_comprehensive_analysis, '$.immediate_actions') as immediate_actions\n",
+        "FROM sec_mv_ai_data_export_analysis\n",
+        "where ai_comprehensive_analysis is not null\n",
+        "and actor is not null;"
+      ],
+      "catalog": "users",
+      "schema": "anhhoang_chu"
     }
   ],
   "pages": [
@@ -312,52 +291,101 @@
                   "datasetName": "41c08c52",
                   "fields": [
                     {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    },
+                    {
                       "name": "action_name",
                       "expression": "`action_name`"
                     },
                     {
-                      "name": "count(*)",
-                      "expression": "COUNT(`*`)"
+                      "name": "daily(event_time)",
+                      "expression": "DATE_TRUNC(\"DAY\", `event_time`)"
                     },
                     {
-                      "name": "actor",
-                      "expression": "`actor`"
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
                     }
                   ],
-                  "disaggregated": false
+                  "cubeGroupingSets": {
+                    "sets": [
+                      {
+                        "fieldNames": [
+                          "actor",
+                          "action_name"
+                        ]
+                      },
+                      {
+                        "fieldNames": [
+                          "daily(event_time)"
+                        ]
+                      }
+                    ]
+                  },
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`actor`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "`action_name`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "DATE_TRUNC(\"DAY\", `event_time`)"
+                    }
+                  ]
                 }
               }
             ],
             "spec": {
               "version": 3,
-              "widgetType": "bar",
+              "widgetType": "pivot",
               "encodings": {
-                "x": {
-                  "fieldName": "count(*)",
-                  "scale": {
-                    "type": "quantitative",
-                    "fn": {
-                      "type": "symlog"
+                "rows": [
+                  {
+                    "fieldName": "actor",
+                    "scale": {
+                      "type": "categorical",
+                      "sort": {
+                        "by": "cell-reversed",
+                        "field": {
+                          "index": 0
+                        }
+                      }
+                    },
+                    "displayName": "actor"
+                  },
+                  {
+                    "fieldName": "action_name",
+                    "displayName": "action_name"
+                  }
+                ],
+                "columns": [
+                  {
+                    "fieldName": "daily(event_time)",
+                    "displayName": "event_time"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "count(*)",
+                      "cellType": "text",
+                      "style": {
+                        "type": "color-scale",
+                        "backgroundColor": {
+                          "scale": {
+                            "type": "quantitative"
+                          }
+                        }
+                      },
+                      "displayName": "Exports"
                     }
-                  },
-                  "displayName": "Number of Exports"
-                },
-                "y": {
-                  "fieldName": "actor",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "x-reversed"
-                    }
-                  },
-                  "displayName": "actor"
-                },
-                "color": {
-                  "fieldName": "action_name",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "action_name"
+                  ]
                 }
               },
               "frame": {
@@ -378,20 +406,7 @@
             "name": "a49135f1",
             "queries": [
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d45da9156ab4912b1371a55783_start_time",
-                "query": {
-                  "datasetName": "996d1f2e",
-                  "parameters": [
-                    {
-                      "name": "start_time",
-                      "keyword": "start_time"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d46c5b12f08eb5220da2deca7b_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819b7bdfae896b81da83d_start_time",
                 "query": {
                   "datasetName": "41c08c52",
                   "parameters": [
@@ -404,7 +419,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b1d911a89070499cef791dcb_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819d6953a5ff04178682c_start_time",
                 "query": {
                   "datasetName": "cf20332b",
                   "parameters": [
@@ -417,7 +432,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2201bb3a46768fe01a40590_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819eb85bd33c4a1bd27a7_start_time",
                 "query": {
                   "datasetName": "16130009",
                   "parameters": [
@@ -430,7 +445,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2bd19b7b24c090ec311dce7_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819ff942ddcd177b43afa_start_time",
                 "query": {
                   "datasetName": "c210ba8a",
                   "parameters": [
@@ -443,7 +458,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b30f1913b532e1cdfae771c2_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a139b331f9cc9e03e50_start_time",
                 "query": {
                   "datasetName": "fd2affc8",
                   "parameters": [
@@ -456,7 +471,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b35d11bbbf6c787d9d6720ff_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a268a42bfb73c1ab427_start_time",
                 "query": {
                   "datasetName": "90a63fed",
                   "parameters": [
@@ -469,7 +484,7 @@
                 }
               },
               {
-                "name": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b3cd1cf995637ba9948d19fd_start_time",
+                "name": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a67ab411abc7cf2469f_start_time",
                 "query": {
                   "datasetName": "b3d30879",
                   "parameters": [
@@ -489,35 +504,31 @@
                 "fields": [
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d45da9156ab4912b1371a55783_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819b7bdfae896b81da83d_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d46c5b12f08eb5220da2deca7b_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819d6953a5ff04178682c_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b1d911a89070499cef791dcb_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819eb85bd33c4a1bd27a7_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2201bb3a46768fe01a40590_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a18187819ff942ddcd177b43afa_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b2bd19b7b24c090ec311dce7_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a139b331f9cc9e03e50_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b30f1913b532e1cdfae771c2_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a268a42bfb73c1ab427_start_time"
                   },
                   {
                     "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b35d11bbbf6c787d9d6720ff_start_time"
-                  },
-                  {
-                    "parameterName": "start_time",
-                    "queryName": "parameter_dashboards/01f076d44b181634b650e87047da6c09/datasets/01f076d4b3cd1cf995637ba9948d19fd_start_time"
+                    "queryName": "parameter_dashboards/01f076e87a141b0fa448e82f1833f444/datasets/01f07a1818781a67ab411abc7cf2469f_start_time"
                   }
                 ]
               },
@@ -536,166 +547,20 @@
         },
         {
           "widget": {
-            "name": "ade7bf8c",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "cf20332b",
-                  "fields": [
-                    {
-                      "name": "action_name",
-                      "expression": "`action_name`"
-                    },
-                    {
-                      "name": "count(*)",
-                      "expression": "COUNT(`*`)"
-                    },
-                    {
-                      "name": "target_user",
-                      "expression": "`target_user`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "encodings": {
-                "x": {
-                  "fieldName": "count(*)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "axis": {
-                    "title": "Assignments"
-                  },
-                  "displayName": "Assignments"
-                },
-                "y": {
-                  "fieldName": "target_user",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "x-reversed"
-                    }
-                  },
-                  "displayName": "target_user"
-                },
-                "color": {
-                  "fieldName": "action_name",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "action_name"
-                }
-              },
-              "frame": {
-                "title": "Account Admin Assignment",
-                "showTitle": true
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 3,
-            "width": 6,
-            "height": 9
-          }
-        },
-        {
-          "widget": {
             "name": "886cfbdc",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "c210ba8a",
+                  "datasetName": "dc9de73d",
                   "fields": [
                     {
-                      "name": "new_acl",
-                      "expression": "`new_acl`"
+                      "name": "escalation_type",
+                      "expression": "`escalation_type`"
                     },
                     {
-                      "name": "count(*)",
-                      "expression": "COUNT(`*`)"
-                    },
-                    {
-                      "name": "target_user",
-                      "expression": "`target_user`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "encodings": {
-                "x": {
-                  "fieldName": "count(*)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "New Acl"
-                },
-                "y": {
-                  "fieldName": "target_user",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "x-reversed"
-                    }
-                  },
-                  "displayName": "target_user"
-                },
-                "color": {
-                  "fieldName": "new_acl",
-                  "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "custom-order",
-                      "orderedValues": [
-                        "Workspace Access",
-                        "Workspace Consume"
-                      ]
-                    }
-                  },
-                  "displayName": "new_acl"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "New Workspace Acl Assignments by Users"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 12,
-            "width": 6,
-            "height": 8
-          }
-        },
-        {
-          "widget": {
-            "name": "0d2fd684",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "fd2affc8",
-                  "fields": [
-                    {
-                      "name": "new_acl",
-                      "expression": "`new_acl`"
-                    },
-                    {
-                      "name": "countdistinct(new_acl)",
-                      "expression": "COUNT(DISTINCT `new_acl`)"
+                      "name": "sum(actor_activity_count)",
+                      "expression": "SUM(`actor_activity_count`)"
                     },
                     {
                       "name": "actor",
@@ -711,11 +576,11 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "countdistinct(new_acl)",
+                  "fieldName": "sum(actor_activity_count)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Count of Unique new_acl"
+                  "displayName": "Events"
                 },
                 "y": {
                   "fieldName": "actor",
@@ -728,24 +593,24 @@
                   "displayName": "actor"
                 },
                 "color": {
-                  "fieldName": "new_acl",
+                  "fieldName": "escalation_type",
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "new_acl"
+                  "displayName": "escalation_type"
                 }
               },
               "frame": {
-                "title": "DBSQL Acls by User",
-                "showTitle": true
+                "showTitle": true,
+                "title": "Privileges Escalations by Actors"
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 9,
             "width": 6,
-            "height": 6
+            "height": 8
           }
         },
         {
@@ -875,7 +740,7 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "fd2affc8",
+                  "datasetName": "41c08c52",
                   "fields": [
                     {
                       "name": "count(*)",
@@ -897,12 +762,12 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "DBSQL Acls"
+                "title": "Data Exports"
               }
             }
           },
           "position": {
-            "x": 3,
+            "x": 5,
             "y": 1,
             "width": 1,
             "height": 2
@@ -942,7 +807,7 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 3,
             "y": 1,
             "width": 1,
             "height": 2
@@ -955,7 +820,7 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "fd2affc8",
+                  "datasetName": "b3d30879",
                   "fields": [
                     {
                       "name": "count(*)",
@@ -982,10 +847,1322 @@
             }
           },
           "position": {
-            "x": 5,
+            "x": 4,
             "y": 1,
             "width": 1,
             "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "503290cd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dc9de73d",
+                  "fields": [
+                    {
+                      "name": "escalation_type",
+                      "expression": "`escalation_type`"
+                    },
+                    {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    },
+                    {
+                      "name": "affected_entity",
+                      "expression": "`affected_entity`"
+                    },
+                    {
+                      "name": "actor_activity_count",
+                      "expression": "`actor_activity_count`"
+                    },
+                    {
+                      "name": "risk_level",
+                      "expression": "`risk_level`"
+                    },
+                    {
+                      "name": "risk_factors",
+                      "expression": "`risk_factors`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "escalation_type",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "escalation_type",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "escalation_type"
+                  },
+                  {
+                    "fieldName": "actor",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100001,
+                    "title": "actor",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "actor"
+                  },
+                  {
+                    "fieldName": "affected_entity",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "affected_entity",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "affected_entity"
+                  },
+                  {
+                    "fieldName": "actor_activity_count",
+                    "numberFormat": "0",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100003,
+                    "title": "actor_activity_count",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "actor_activity_count"
+                  },
+                  {
+                    "fieldName": "risk_level",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100005,
+                    "title": "risk_level",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "risk_level"
+                  },
+                  {
+                    "fieldName": "risk_factors",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100006,
+                    "title": "risk_factors",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "risk_factors"
+                  }
+                ]
+              },
+              "invisibleColumns": [
+                {
+                  "numberFormat": "0",
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "actor_unique_entities",
+                  "type": "integer",
+                  "displayAs": "number",
+                  "order": 100004,
+                  "title": "actor_unique_entities",
+                  "allowSearch": false,
+                  "alignContent": "right",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "immediate_actions",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100007,
+                  "title": "immediate_actions",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "investigation_steps",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100008,
+                  "title": "investigation_steps",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                }
+              ],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Privilege Escalations"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 6,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "c72c18ba",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "72fcfe95",
+                  "fields": [
+                    {
+                      "name": "overall_risk_level",
+                      "expression": "`overall_risk_level`"
+                    },
+                    {
+                      "name": "key_risk_areas",
+                      "expression": "`key_risk_areas`"
+                    },
+                    {
+                      "name": "immediate_actions",
+                      "expression": "`immediate_actions`"
+                    },
+                    {
+                      "name": "compliance_considerations",
+                      "expression": "`compliance_considerations`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "overall_risk_level",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100002,
+                    "title": "overall_risk_level",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "overall_risk_level"
+                  },
+                  {
+                    "fieldName": "key_risk_areas",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100003,
+                    "title": "key_risk_areas",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "key_risk_areas"
+                  },
+                  {
+                    "fieldName": "immediate_actions",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100004,
+                    "title": "immediate_actions",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "immediate_actions"
+                  },
+                  {
+                    "fieldName": "compliance_considerations",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100006,
+                    "title": "compliance_considerations",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "compliance_considerations"
+                  }
+                ]
+              },
+              "invisibleColumns": [
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "analysis_type",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100000,
+                  "title": "analysis_type",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "analysis_timestamp",
+                  "type": "datetime",
+                  "displayAs": "datetime",
+                  "order": 100001,
+                  "title": "analysis_timestamp",
+                  "allowSearch": false,
+                  "alignContent": "right",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "strategic_recommendations",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100005,
+                  "title": "strategic_recommendations",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                }
+              ],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": false,
+              "withRowNumber": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Security Summary"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "a4d2738b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "996d1f2e",
+                  "fields": [
+                    {
+                      "name": "detection_type",
+                      "expression": "`detection_type`"
+                    },
+                    {
+                      "name": "failed_attempts",
+                      "expression": "`failed_attempts`"
+                    },
+                    {
+                      "name": "unique_entities",
+                      "expression": "`unique_entities`"
+                    },
+                    {
+                      "name": "first_attempt",
+                      "expression": "`first_attempt`"
+                    },
+                    {
+                      "name": "last_attempt",
+                      "expression": "`last_attempt`"
+                    },
+                    {
+                      "name": "ai_comprehensive_analysis",
+                      "expression": "`ai_comprehensive_analysis`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "detection_type",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100000,
+                    "title": "detection_type",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "detection_type"
+                  },
+                  {
+                    "fieldName": "failed_attempts",
+                    "numberFormat": "0",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100004,
+                    "title": "failed_attempts",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "failed_attempts"
+                  },
+                  {
+                    "fieldName": "unique_entities",
+                    "numberFormat": "0",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 100005,
+                    "title": "unique_entities",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "unique_entities"
+                  },
+                  {
+                    "fieldName": "first_attempt",
+                    "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "datetime",
+                    "displayAs": "datetime",
+                    "visible": true,
+                    "order": 100008,
+                    "title": "first_attempt",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "first_attempt"
+                  },
+                  {
+                    "fieldName": "last_attempt",
+                    "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "datetime",
+                    "displayAs": "datetime",
+                    "visible": true,
+                    "order": 100009,
+                    "title": "last_attempt",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "last_attempt"
+                  },
+                  {
+                    "fieldName": "ai_comprehensive_analysis",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 100011,
+                    "title": "ai_comprehensive_analysis",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "ai_comprehensive_analysis"
+                  }
+                ]
+              },
+              "invisibleColumns": [
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "entity_id",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100001,
+                  "title": "entity_id",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "entity_name",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100002,
+                  "title": "entity_name",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "entity_type",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 100003,
+                  "title": "entity_type",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "related_entities",
+                  "type": "complex",
+                  "displayAs": "json",
+                  "order": 100006,
+                  "title": "related_entities",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "user_agents",
+                  "type": "complex",
+                  "displayAs": "json",
+                  "order": 100007,
+                  "title": "user_agents",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "detection_timestamp",
+                  "type": "datetime",
+                  "displayAs": "datetime",
+                  "order": 100010,
+                  "title": "detection_timestamp",
+                  "allowSearch": false,
+                  "alignContent": "right",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                }
+              ],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Failed Login Analysis"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "40bb33d4",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b40cbd60",
+                  "fields": [
+                    {
+                      "name": "actor",
+                      "expression": "`actor`"
+                    },
+                    {
+                      "name": "export_count",
+                      "expression": "`export_count`"
+                    },
+                    {
+                      "name": "source",
+                      "expression": "`source`"
+                    },
+                    {
+                      "name": "artifact",
+                      "expression": "`artifact`"
+                    },
+                    {
+                      "name": "risk_level",
+                      "expression": "`risk_level`"
+                    },
+                    {
+                      "name": "risk_factors",
+                      "expression": "`risk_factors`"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`actor` IS NULL OR `actor` NOT IN ('')"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "actor",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 0,
+                    "title": "actor",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "actor"
+                  },
+                  {
+                    "fieldName": "export_count",
+                    "numberFormat": "0",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "integer",
+                    "displayAs": "number",
+                    "visible": true,
+                    "order": 2,
+                    "title": "export_count",
+                    "allowSearch": false,
+                    "alignContent": "right",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "export_count"
+                  },
+                  {
+                    "fieldName": "source",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 3,
+                    "title": "source",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "source"
+                  },
+                  {
+                    "fieldName": "artifact",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 4,
+                    "title": "artifact",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "artifact"
+                  },
+                  {
+                    "fieldName": "risk_level",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 6,
+                    "title": "risk_level",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "risk_level"
+                  },
+                  {
+                    "fieldName": "risk_factors",
+                    "booleanValues": [
+                      "false",
+                      "true"
+                    ],
+                    "imageUrlTemplate": "{{ @ }}",
+                    "imageTitleTemplate": "{{ @ }}",
+                    "imageWidth": "",
+                    "imageHeight": "",
+                    "linkUrlTemplate": "{{ @ }}",
+                    "linkTextTemplate": "{{ @ }}",
+                    "linkTitleTemplate": "{{ @ }}",
+                    "linkOpenInNewTab": true,
+                    "type": "string",
+                    "displayAs": "string",
+                    "visible": true,
+                    "order": 7,
+                    "title": "risk_factors",
+                    "allowSearch": false,
+                    "alignContent": "left",
+                    "allowHTML": false,
+                    "highlightLinks": false,
+                    "useMonospaceFont": false,
+                    "preserveWhitespace": false,
+                    "displayName": "risk_factors"
+                  }
+                ]
+              },
+              "invisibleColumns": [
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "workspace_id",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 1,
+                  "title": "workspace_id",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "action_name",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 5,
+                  "title": "action_name",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "first_activity",
+                  "type": "datetime",
+                  "displayAs": "datetime",
+                  "order": 8,
+                  "title": "first_activity",
+                  "allowSearch": false,
+                  "alignContent": "right",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "immediate_actions",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 9,
+                  "title": "immediate_actions",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "dateTimeFormat": "DD/MM/YYYY HH:mm:ss.SSS",
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "last_activity",
+                  "type": "datetime",
+                  "displayAs": "datetime",
+                  "order": 10,
+                  "title": "last_activity",
+                  "allowSearch": false,
+                  "alignContent": "right",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                },
+                {
+                  "booleanValues": [
+                    "false",
+                    "true"
+                  ],
+                  "imageUrlTemplate": "{{ @ }}",
+                  "imageTitleTemplate": "{{ @ }}",
+                  "imageWidth": "",
+                  "imageHeight": "",
+                  "linkUrlTemplate": "{{ @ }}",
+                  "linkTextTemplate": "{{ @ }}",
+                  "linkTitleTemplate": "{{ @ }}",
+                  "linkOpenInNewTab": true,
+                  "name": "ai_comprehensive_analysis",
+                  "type": "string",
+                  "displayAs": "string",
+                  "order": 11,
+                  "title": "ai_comprehensive_analysis",
+                  "allowSearch": false,
+                  "alignContent": "left",
+                  "allowHTML": false,
+                  "highlightLinks": false,
+                  "useMonospaceFont": false,
+                  "preserveWhitespace": false
+                }
+              ],
+              "allowHTMLByDefault": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "condensed": true,
+              "withRowNumber": false,
+              "frame": {
+                "showTitle": true,
+                "title": "Data Export AI Analysis"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 6,
+            "height": 9
           }
         }
       ],
@@ -995,33 +2172,33 @@
   "uiSettings": {
     "theme": {
       "canvasBackgroundColor": {
-        "light": "#1F1B2E",
-        "dark": "#0C0B1D"
+        "light": "#F4F2ED",
+        "dark": "#1F1E1D"
       },
       "widgetBackgroundColor": {
-        "light": "#2A2442",
-        "dark": "#1B1833"
+        "light": "#EBE9E2",
+        "dark": "#1B1817"
       },
       "widgetBorderColor": {
-        "light": "#5E5A80",
-        "dark": "#3F3B60"
+        "light": "#D5CEC3",
+        "dark": "#2F2E2B"
       },
       "fontColor": {
-        "light": "#FDFDFD",
-        "dark": "#F5F5F5"
+        "light": "#3D3C39",
+        "dark": "#FAFBF9"
       },
       "selectionColor": {
-        "light": "#FF6EC7",
-        "dark": "#FF6EC7"
+        "light": "#5F7E52",
+        "dark": "#7A8F3E"
       },
       "visualizationColors": [
-        "#FF6EC7",
-        "#00FFF7",
-        "#BF00FF",
-        "#FF5F1F",
-        "#FFFF4D",
-        "#D9007F",
-        "#007FFF"
+        "#1A4F27",
+        "#B35900",
+        "#3A9BDC",
+        "#7A8F3E",
+        "#E8B200",
+        "#767676",
+        "#C23B22"
       ],
       "widgetHeaderAlignment": "LEFT"
     }
