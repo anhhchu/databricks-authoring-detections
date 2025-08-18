@@ -41,21 +41,23 @@ def generate_alert_sql(alert_config: Dict[str, Any], global_config: Dict[str, An
 
     print(query_text)
     
-    sql = f"""-- {alert_config['description']}
-            SELECT create_alert(
-            display_name => '{alert_config['display_name']}',
-            query_text => format_string('{query_text}', :catalog, :schema),
-            warehouse_id => {global_config['warehouse_id']},
-            comparison_operator => '{alert_config['comparison_operator']}',
-            threshold_value => {alert_config['threshold_value']},
-            empty_result_state => '{alert_config.get('empty_result_state', 'UNKNOWN')}',
-            user_email => {global_config['user_email']},
-            notify_on_ok => {str(global_config['notify_on_ok']).lower()},
-            retrigger_seconds => {global_config['retrigger_seconds']},
-            cron_schedule => '{alert_config.get('cron_schedule', global_config.get('cron_schedule', '0 0 10 1/7 * ?'))}',
-            timezone_id => '{global_config['timezone_id']}',
-            pause_status => '{global_config['pause_status']}'
-            ) as alert;"""
+    sql = f"""
+-- {alert_config['description']}
+SELECT create_alert(
+    display_name => '{alert_config['display_name']}',
+    query_text => format_string('{query_text}', :catalog, :schema),
+    warehouse_id => {global_config['warehouse_id']},
+    comparison_operator => '{alert_config['comparison_operator']}',
+    threshold_value => {alert_config['threshold_value']},
+    empty_result_state => '{alert_config.get('empty_result_state', 'UNKNOWN')}',
+    user_email => {global_config['user_email']},
+    notify_on_ok => {str(global_config['notify_on_ok']).lower()},
+    retrigger_seconds => {global_config['retrigger_seconds']},
+    cron_schedule => '{alert_config.get('cron_schedule', global_config.get('cron_schedule', '0 0 10 1/7 * ?'))}',
+    timezone_id => '{global_config['timezone_id']}',
+    pause_status => '{global_config['pause_status']}'
+    ) as alert;
+"""
     
     return sql
 
@@ -99,7 +101,7 @@ def main():
         # Get script directory and resolve output path relative to project root
         script_dir = Path(__file__).parent
         project_root = script_dir.parent.parent
-        output_file = project_root / "src"/ "alerts.sql"
+        output_file = project_root / "src"/ "create_alerts.sql"
         
         # Ensure the output directory exists
         output_file.parent.mkdir(parents=True, exist_ok=True)

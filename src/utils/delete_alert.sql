@@ -8,7 +8,7 @@ use schema identifier(:schema);
 -- set the owner you want
 DECLARE or replace owner STRING DEFAULT 'anhhoang.chu@databricks.com';
 
-create temp view alerts_to_delete 
+create or replace temp view alerts_to_delete 
 as
 WITH r AS (
   SELECT http_request(
@@ -30,12 +30,12 @@ parsed AS (
               warehouse_id: STRING,
               lifecycle_state: STRING,
               evaluation: STRUCT<
-                comparison_operator: STRING,
-                empty_result_state: STRING,
-                state: STRING,
-                source: STRUCT<name: STRING, display: STRING>,
-                threshold: STRUCT<value: STRUCT<double_value: DOUBLE>>,
-                notification: STRUCT<notify_on_ok: BOOLEAN, retrigger_seconds: INT>
+              comparison_operator: STRING,
+              empty_result_state: STRING,
+              state: STRING,
+              source: STRUCT<name: STRING, display: STRING>,
+              threshold: STRUCT<value: STRUCT<double_value: DOUBLE>>,
+              notification: STRUCT<notify_on_ok: BOOLEAN, retrigger_seconds: INT>
               >,
               schedule: STRUCT<quartz_cron_schedule: STRING, timezone_id: STRING, pause_status: STRING>
            >>>'

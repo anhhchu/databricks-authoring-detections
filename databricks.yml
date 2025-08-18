@@ -32,7 +32,7 @@ targets:
     workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com
     variables:
-      warehouse_id: 30d6e63b35f828c5
+      warehouse_id: 8baced1ff014912d
       catalog: users
       schema: ${workspace.current_user.short_name}
       workspace_host: https://e2-demo-field-eng.cloud.databricks.com
