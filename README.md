@@ -106,7 +106,7 @@ Check your configuration:
 
 ```bash
 # List all profiles
-cat ~/.databrickscfg
+databricks auth profiles
 ```
 
 Your `~/.databrickscfg` should look like:
@@ -183,7 +183,24 @@ Before deploying to your Databricks workspace, you should customize the security
 2. **Document any customizations** for your team
 3. **Ensure all required parameters** are set in `databricks.yml`
 
-### 6. Deploy to Databricks Workspace
+### 6. Update Dashboard Configuration
+Before deploying the bundle, in the base folder, run the Python script to update the dashboard query parameters for the target environment. The target name and CLI profile are required arguments:
+
+```bash
+$ python src/replace_dashboard_vars.py --target dev --profile DEFAULT
+
+# OR for PROD
+
+$ python src/replace_dashboard_vars.py --target PROD --profile PROD
+```
+
+This script:
+- Resolves DAB variables for the specified target
+- Updates the existing dashboard file (`dbsql_metrics.lvdash.json`)
+- Replaces the catalog and schema parameter values
+- Preserves all other dashboard configuration settings
+
+### 7. Deploy to Databricks Workspace
 
 #### Deploy in Development Environment
 
@@ -206,7 +223,7 @@ $ databricks bundle deploy --target prod --profile PROD
 This deploys everything that's defined for this project, including:
 - A job called `databricks_authoring_security_detection`
 
-### 7. Run a Job
+### 8. Run a Job
 
 **Run in Dev**
 
@@ -217,6 +234,16 @@ $ databricks bundle run --target dev --profile DEFAULT
 
 ```bash
 $ databricks bundle run --target prod --profile PROD
+```
+
+### 9. Optional - Destroy all assets 
+
+```bash
+# Force destroy without confirmation prompts
+databricks bundle destroy --force
+
+# Destroy a specific bundle if you have multiple
+databricks bundle destroy --target <bundle-name>
 ```
 
 ## 🚨 Alerts Setup
